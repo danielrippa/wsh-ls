@@ -3,79 +3,75 @@
 
     { camel-case } = dependency 'value.string.Case'
     { create-notifier } = dependency 'value.instance.Notifier'
+    { argument-type: argtype } = dependency 'value.reflection.Type'
 
-    # Create state with clean syntax
+    create-transition-event = (transition, from-state, to-state, extra = {}) ->
+
+      { transition, from-state, to-state, timestamp: new Date! } <<< extra
+
+    states-pair-as-transition = (states-pair) ->
+
+        argtype '[ String String ]' {states-pair} ; [ source-state, target-state ] = states-pair
+
+        { from: source-state, to: target-state }
+
     create-state = (states, transitions, instance-context = {}) ->
 
-      # Initial state is first in states array
+      argtype '[ *:String ]' {states} ; argtype '<Object>' {transitions}
+
+      if states.length < 2 then
+        throw new Error "" # TODO
+
       current-state = states[0]
 
-      # Build transition map from object format: { poweron: ['poweredoff', 'idle'], ... }
-      transition-map = {}
-      for transition-name, [from-state, to-state] of transitions
-        transition-map[transition-name] = { from: from-state, to: to-state }
+      transition-map = { [ transition-name, states-pair-as-transition states-pair ] for transition-name, states-pair of transitions }
 
-      # Create transition event names
       transition-events = []
+
       for transition-name of transition-map
         transition-events.push "before-#{transition-name}"
         transition-events.push "after-#{transition-name}"
 
-      # Create notifier for transition events
       notifier = create-notifier transition-events
 
-      # Helper to create transition event
-      create-transition-event = (transition-name, from-state, to-state, extra = {}) ->
-        {
-          transition: transition-name,
-          from-state: from-state,
-          to-state: to-state,
-          timestamp: new Date!
-        } <<< extra
+      execute-transition = (transition-name, source-state, target-state) ->
+        if current-state isnt source-state
+          throw new Error "Cannot #{transition-name}: expected state '#{source-state}', but current state is '#{current-state}'"
 
-      # Helper to fire transition events and execute transition
-      execute-transition = (transition-name, from-state, to-state) ->
-        if current-state isnt from-state
-          throw "Cannot #{transition-name}: expected state '#{from-state}', but current state is '#{current-state}'"
+        previous-state = current-state
 
-        old-state = current-state
-
-        # Fire before event
-        before-event = create-transition-event transition-name, old-state, to-state
+        before-event = create-transition-event transition-name, previous-state, target-state
         notifier.notify ["before-#{transition-name}"], before-event
 
-        # Call hook if it exists in instance context
         hook-name = camel-case "on-#{transition-name}"
         if instance-context[hook-name]
-          instance-context[hook-name] old-state, to-state
+          instance-context[hook-name] previous-state, target-state
 
-        # Change state
-        current-state := to-state
+        current-state := target-state
 
-        # Fire after event
-        after-event = create-transition-event transition-name, old-state, current-state, { success: true }
+        after-event = create-transition-event transition-name, previous-state, current-state, { success: true }
         notifier.notify ["after-#{transition-name}"], after-event
 
         current-state
 
-      # Create instance interface that can be merged directly
-      interface = {}
+      instance = {}
 
-      # Create transition methods
-      for transition-name, { from: from-state, to: to-state } of transition-map
-        do (transition-name = transition-name, from-state = from-state, to-state = to-state) ->
-          interface[camel-case transition-name] = ->
-            execute-transition transition-name, from-state, to-state
+      for name, transition of transition-map
 
-      # Add event subscription methods
+        { from: source, to: target } = transition
+
+        do (transition-name = name, source-state = source, target-state = target) ->
+          instance[camel-case transition-name] = ->
+            execute-transition transition-name, source-state, target-state
+
       for transition-name of transition-map
         before-event = camel-case "before-#{transition-name}"
         after-event = camel-case "after-#{transition-name}"
 
-        interface[before-event] = notifier.events[before-event]
-        interface[after-event] = notifier.events[after-event]
+        instance[before-event] = notifier.notifications[before-event]
+        instance[after-event] = notifier.notifications[after-event]
 
-      interface
+      instance
 
     {
       create-state

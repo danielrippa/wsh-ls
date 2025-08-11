@@ -2,11 +2,11 @@
   do ->
 
     { value-typetag } = dependency 'value.TypeTag'
-    { angle-brackets, curly-brackets, square-brackets, round-brackets, single-quotes } = dependency 'value.string.Brackets'
+    { circumfix, angle-brackets, curly-brackets, square-brackets, round-brackets, single-quotes } = dependency 'value.string.Brackets'
     { kebab-case } = dependency 'value.string.Case'
-    { map-array-items: map } = dependency 'value.Array'
+    { map-array-items: map, array-size } = dependency 'value.Array'
     { object-member-pairs } = dependency 'value.Object'
-    { function-paremeter-names } = dependency 'value.Function'
+    { function-parameter-names } = dependency 'value.Function'
 
     pad-with-space = -> circumfix it, [ ' ' ]
 

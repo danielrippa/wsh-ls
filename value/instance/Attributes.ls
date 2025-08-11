@@ -1,7 +1,7 @@
 
   do ->
 
-    { argument-type: argtype } = dependency 'value.reflection.Argument'
+    { argument-type: argtype } = dependency 'value.reflection.Type'
 
     create-attribute-type-manager = ->
 

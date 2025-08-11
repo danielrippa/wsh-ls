@@ -37,7 +37,7 @@
       create-argument-requirement-error argument, type-name
 
     {
-      create-argument-error
-      create-argument-type-error
+      create-argument-error,
+      create-argument-type-error,
       create-argument-requirement-error
     }

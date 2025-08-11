@@ -3,7 +3,9 @@
 
     { type-descriptor } = dependency 'value.reflection.TypeDescriptor'
     { array-size } = dependency 'value.Array'
-    { value-is-array } = dependency 'value.Type'
+    { value-is-array, value-is-object, value-is-string } = dependency 'value.Type'
+    { create-argument-type-error: argtype-error, create-argument-requirement-error: arg-error } = dependency 'value.error.ArgumentError'
+    { object-member-names } = dependency 'value.Object'
 
     ellipsis = '...'
 
@@ -280,7 +282,7 @@
 
     object-with-members = (object, [ descriptor, tokens ]) ->
 
-      unless is-object object
+      unless value-is-object object
         throw type-error "Value #{ typed-value-as-string object } was expected to be an object as per descriptor #{ value-as-string descriptor }"
 
       member-names = object-member-names object
@@ -406,8 +408,6 @@
 
     #
 
-
-
     type = (descriptor, value) ->
 
       { type-tokens, descriptor-kind } = type-descriptor descriptor
@@ -421,6 +421,23 @@
 
       value `value-with-type-tokens` { descriptor, type-tokens }
 
+    argument-type = (descriptor, argument) ->
+
+      throw argtype-error {argument}, 'Object' unless value-is-object argument
+      throw argtype-error {descriptor}, 'String' unless value-is-string descriptor
+
+      keys = object-member-names argument
+
+      throw arg-error {argument}, "Argument 'argument' must be an object with one key" \
+        unless keys.length > 0
+
+      argument-name = keys.0 ; argument-value = argument[ argument-name ]
+
+      try type descriptor, argument-value
+      catch error => argtype-error {argument}, error.message
+
+      argument-value
+
     {
-      type
+      type, argument-type
     }

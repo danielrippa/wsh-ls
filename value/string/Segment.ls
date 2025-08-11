@@ -1,6 +1,7 @@
 
   do ->
 
+    { string-size } = dependency 'value.String'
     { create-regexp } = dependency 'value.string.RegExp'
 
     maybe-null = -> if it is -1 then null else it
