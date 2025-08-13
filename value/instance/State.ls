@@ -4,27 +4,44 @@
     { camel-case } = dependency 'value.string.Case'
     { create-notifier } = dependency 'value.instance.Notifier'
     { argument-type: argtype } = dependency 'value.reflection.Type'
+    { create-argument-requirement-error: arg-error } = dependency 'value.error.ArgumentError'
 
     create-transition-event = (transition, from-state, to-state, extra = {}) ->
 
       { transition, from-state, to-state, timestamp: new Date! } <<< extra
 
-    states-pair-as-transition = (states-pair) ->
+    states-pair-as-transition = (transition-name, states-pair) ->
 
-        argtype '[ String String ]' {states-pair} ; [ source-state, target-state ] = states-pair
+      [ source-state, target-state ] = states-pair
 
-        { from: source-state, to: target-state }
+      { from: source-state, to: target-state }
 
     create-state = (states, transitions, instance-context = {}) ->
 
       argtype '[ *:String ]' {states} ; argtype '<Object>' {transitions}
 
-      if states.length < 2 then
-        throw new Error "" # TODO
+      if states.length < 2
+        arg-error {states}, "a state machine must have at least two states"
 
-      current-state = states[0]
+      current-state = states.0
 
-      transition-map = { [ transition-name, states-pair-as-transition states-pair ] for transition-name, states-pair of transitions }
+      for transition-name, states-pair of transitions
+
+        try argtype '[ String String ]' {states-pair}
+        catch => arg-error {states-pair}, "Invalid transition '#transition-name'. Transitions must declare a source and a target state."
+
+        [ source-state, target-state ] = states-pair
+
+        if source-state is target-state
+          throw arg-error {states-pair}, "cannot transition to itself."
+
+        unless source-state in states
+          throw arg-error {source-state}, "must be one of #{ states * ', ' }."
+
+        unless target-state in states
+          throw arg-error {target-state}, "must be one of #{ states * ', ' }."
+
+      transition-map = { [ transition-name, states-pair-as-transition transition-name, states-pair ] for transition-name, states-pair of transitions }
 
       transition-events = []
 
@@ -55,6 +72,18 @@
         current-state
 
       instance = {}
+
+      # Expose current state
+      instance.state = -> current-state
+
+      # Allow direct state transition if valid transition exists
+      instance.transition-to = (target-state) ->
+        # Find a transition from current state to target state
+        for transition-name, transition of transition-map
+          if transition.from is current-state and transition.to is target-state
+            return execute-transition transition-name, current-state, target-state
+        
+        throw new Error "No valid transition from '#{current-state}' to '#{target-state}'"
 
       for name, transition of transition-map
 
