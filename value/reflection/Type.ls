@@ -2,7 +2,7 @@ do ->
 
     { type-descriptor } = dependency 'value.reflection.TypeDescriptor'
     { array-size, find-array-item } = dependency 'value.Array'
-    { value-is-array, value-is-object, value-is-string } = dependency 'value.Type'
+    { value-is-array, value-is-object, value-is-string, value-is-function } = dependency 'value.Type'
     { create-argument-type-error: argtype-error, create-argument-requirement-error: arg-error } = dependency 'value.error.ArgumentError'
     { object-member-names } = dependency 'value.Object'
     { string-contains } = dependency 'value.String'
@@ -23,10 +23,18 @@ do ->
 
     value-with-type = (value, [ descriptor, tokens ]) ->
 
-      return value if '?' in tokens
-      return value if (find-array-item tokens, -> value `is-a` it)?
+      unless (array-size tokens) is 1
+        throw arg-error {tokens}, "value-with-type expects exactly one token for union types, got #{array-size tokens}"
+      
+      [ token ] = tokens
+      
+      return value if token is '?'
+      
+      union-types = token-as-types token
+      
+      return value if (find-array-item union-types, -> value `is-a` it)?
 
-      throw arg-error {value} any-of tokens
+      throw arg-error {value} any-of union-types
 
     #
 
@@ -41,7 +49,7 @@ do ->
       [ token ] = tokens
 
       unless token `string-contains` ':'
-        throw arg-error {tokens}, "List type descriptor must contain ':'"
+        return null  # Not a list descriptor, let it be handled as tuple
 
       [ star, types ] = token / ':'
 
@@ -345,7 +353,7 @@ do ->
 
     function-with-parameters = (value, [ descriptor, tokens ]) ->
 
-      unless is-function value
+      unless value-is-function value
         throw argtype-error {value}, 'Function'
 
       parameter-names = function-parameter-names value
@@ -436,9 +444,6 @@ do ->
       argument-name = keys.0 ; argument-value = argument[ argument-name ]
 
       type descriptor, argument-value
-
-      # try type descriptor, argument-value
-      # catch error => throw argtype-error {argument-value}, error.message
 
       argument-value
 

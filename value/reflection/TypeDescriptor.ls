@@ -22,7 +22,7 @@
 
         else throw arg-error {descriptor}, "coso"
 
-        type-tokens = chars * '' |> string-as-words
+      type-tokens = chars * '' |> string-as-words
 
       { type-tokens, descriptor-kind }
 
