@@ -32,8 +32,6 @@
 
           | (.method isnt void) =>
 
-            WScript.Echo 'method'
-
             instance[name] = apply member-descriptor, 'method', name, instance
 
           | (.notifier isnt void) =>
