@@ -37,6 +37,7 @@
           | (.notifier isnt void) =>
 
             notifier-instance = create-notifier member-descriptor.notifier
+            instance `compose-with` notifier-instance.notifications
             instance `compose-with` [ notifier-instance, <[ notify subscribe ]> ]
             notifiers[name] = notifier-instance
 

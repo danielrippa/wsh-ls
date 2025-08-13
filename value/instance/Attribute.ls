@@ -35,7 +35,13 @@
 
       apply-attributes = (attributes, member-value, member-type, member-name, instance) ->
 
+        WScript.Echo 'antes'
+
+        argtype '<Array|Undefined>' {attributes} ; return member-value if attributes is void
+
         argtype '[ *:Object ]' {attributes}
+
+        WScript.Echo 'dps'
 
         transformed-value = member-value
 
