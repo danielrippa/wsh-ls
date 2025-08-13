@@ -1,11 +1,13 @@
-
-  do ->
+do -> 
 
     { type-descriptor } = dependency 'value.reflection.TypeDescriptor'
-    { array-size } = dependency 'value.Array'
+    { array-size, find-array-item } = dependency 'value.Array'
     { value-is-array, value-is-object, value-is-string } = dependency 'value.Type'
     { create-argument-type-error: argtype-error, create-argument-requirement-error: arg-error } = dependency 'value.error.ArgumentError'
     { object-member-names } = dependency 'value.Object'
+    { string-contains } = dependency 'value.String'
+    { typed-value-as-display-string, value-as-display-string } = dependency 'value.Display'
+    { is-a } = dependency 'value.reflection.TypeName'
 
     ellipsis = '...'
 
@@ -13,7 +15,7 @@
 
       prefix = match array-size tokens
 
-        | 1 => 'a'
+        | 1 => ''
 
         else 'any of'
 
@@ -22,9 +24,9 @@
     value-with-type = (value, [ descriptor, tokens ]) ->
 
       return value if '?' in tokens
-      return value if (find-item tokens, -> value `is-a` it)?
+      return value if (find-array-item tokens, -> value `is-a` it)?
 
-      throw type-error "Value #{ typed-value-as-string value } must be #{ any-of tokens }"
+      throw arg-error {value} any-of tokens
 
     #
 
@@ -39,12 +41,12 @@
       [ token ] = tokens
 
       unless token `string-contains` ':'
-        throw type-error "List type descriptor must contain ':'"
+        throw arg-error {tokens}, "List type descriptor must contain ':'"
 
       [ star, types ] = token / ':'
 
       unless star is '*'
-        throw type-error "List type descriptor must start with '*'"
+        throw arg-error {tokens}, "List type descriptor must start with '*'"
 
       token-as-types types
 
@@ -64,7 +66,7 @@
             break
 
         unless item-has-valid-type
-          throw new type-error "Item #{ typed-value-as-string item } at index #item-index of array #{ typed-value-as-string list } is of an invalid type as per type descriptor #{ value-as-string descriptor }"
+          throw arg-error {list}, "Item #{ typed-value-as-display-string item } at index #item-index of array #{ typed-value-as-display-string list } is of an invalid type as per type descriptor #{ value-as-display-string descriptor }"
 
       list
 
@@ -72,11 +74,11 @@
 
     element-count-mismatch-error = (tuple, descriptor, elements-count, expected-count, strict) ->
 
-      tuple-has-elements = "Tuple #{ value-as-string tuple } has #elements-count elements"
+      tuple-has-elements = "Tuple #{ value-as-display-string tuple } has #elements-count elements"
 
-      descriptor-requires = "#{ if strict then 'strict ' else '' }descriptor #{ value-as-string descriptor } requires#{ if strict then '' else ' at least' }"
+      descriptor-requires = "#{ if strict then 'strict ' else '' }descriptor #{ value-as-display-string descriptor } requires#{ if strict then '' else ' at least' }"
 
-      type-error "#tuple-has-elements, but #descriptor-requires #expected-count elements"
+      new Error "#tuple-has-elements, but #descriptor-requires #expected-count elements"
 
     #
 
@@ -113,7 +115,7 @@
 
         else missing-mandatory-types * ', ' |> -> " #it"
 
-      type-error "Tuple #{ value-as-string tuple } is missing mandatory elements#message as per descriptor #{ value-as-string descriptor }"
+      new Error "Tuple #{ value-as-display-string tuple } is missing mandatory elements#message as per descriptor #{ value-as-display-string descriptor }"
 
     #
 
@@ -146,12 +148,12 @@
         tuple
 
           |> (.slice element-index)
-          |> map _ , typed-value-as-string
+          |> map _ , typed-value-as-display-string
           |> (* ', ')
 
       suffix = if was-prev-ellipsis then "after its variadic '...' part" else ''
 
-      type-error "Tuple #{ value-as-string tuple } has trailing elements #unexpected-elements not defined by descriptor #{ value-as-string descriptor }"
+      new Error "Tuple #{ value-as-display-string tuple } has trailing elements #unexpected-elements not defined by descriptor #{ value-as-display-string descriptor }"
 
     #
 
@@ -180,11 +182,11 @@
 
     element-type-mismatch-error = (tuple, types, descriptor, element-index, type-index) ->
 
-      element = "#{ typed-value-as-string tuple[ element-index ] } at index #element-index in #{ typed-value-as-string tuple }"
+      element = "#{ typed-value-as-display-string tuple[ element-index ] } at index #element-index in #{ typed-value-as-display-string tuple }"
 
-      type = "#{ types[ type-index ] } from descriptor #{ value-as-string descriptor } at index #type-index"
+      type = "#{ types[ type-index ] } from descriptor #{ value-as-display-string descriptor } at index #type-index"
 
-      type-error "Element #element does not match type #type"
+      new Error "Element #element does not match type #type"
 
     #
 
@@ -266,7 +268,7 @@
     array-with-type = (array, [ descriptor, tokens ]) ->
 
       unless value-is-array array
-        throw type-error "Value #{ typed-value-as-string array } was expected to be an array as per descriptor #{ value-as-string descriptor }"
+        throw arg-error {array}, "an array as per descriptor #{ value-as-display-string descriptor }"
 
       item-types = tokens-as-item-types tokens
 
@@ -283,7 +285,7 @@
     object-with-members = (object, [ descriptor, tokens ]) ->
 
       unless value-is-object object
-        throw type-error "Value #{ typed-value-as-string object } was expected to be an object as per descriptor #{ value-as-string descriptor }"
+        throw arg-error {object}, "an object as per descriptor #{ value-as-display-string descriptor }"
 
       member-names = object-member-names object
       members-count = array-size member-names
@@ -297,12 +299,12 @@
       if strict
 
         if members-count isnt tokens-count
-          throw type-error "Object #{ value-as-string object } has #members-count members but it must have #tokens-count as per descriptor #{ value-as-string descriptor }"
+          throw arg-error {object} "has #members-count members but it must have #tokens-count as per descriptor #{ value-as-display-string descriptor }"
 
       else
 
         if members-count < tokens-count
-          throw type-error "Object #{ value-as-string object } has #members-count members but it must have at least #tokens-count as per descriptor #{ value-as-string descriptor }"
+          throw arg-error {object} "has #members-count members but it must have at least #tokens-count as per descriptor #{ value-as-display-string descriptor }"
 
       for token in tokens
 
@@ -312,7 +314,7 @@
 
           unless (camel-case required-member-name) in member-names
 
-            throw type-error "Object #{ value-as-string object } is missing required member '#{ required-member-name }' as per descriptor #{ value-as-string descriptor }"
+            throw arg-error {object}, "is missing required member '#{ required-member-name }' as per descriptor #{ value-as-display-string descriptor }"
 
           continue if required-type-token is '?'
 
@@ -330,12 +332,12 @@
 
           unless member-matches-required-type
 
-            throw type-error "Member '#required-member-name' of object #{ value-as-string object } fails to match the required type #required-type as per descriptor #{ value-as-string descriptor }"
+            throw arg-error {object}, "Member '#required-member-name' of object #{ value-as-display-string object } fails to match the required type #required-type as per descriptor #{ value-as-display-string descriptor }"
 
         else
 
           unless (camel-case token) in member-names
-            throw type-error "Object #{ value-as-string object } is missing member '#token' as per descriptor #{ value-as-string descriptor }"
+            throw arg-error {object}, "is missing member '#token' as per descriptor #{ value-as-display-string descriptor }"
 
       object
 
@@ -344,7 +346,7 @@
     function-with-parameters = (value, [ descriptor, tokens ]) ->
 
       unless is-function value
-        throw type-error ""
+        throw argtype-error {value}, 'Function'
 
       parameter-names = function-parameter-names value
 
@@ -361,7 +363,7 @@
 
         if (parameter-index > parameters-count) or (token-index > tokens-count)
 
-          throw type-error ""
+          throw arg-error {value}, "#parameter-names doesnt match #descriptor" # TODO improve message
 
         token = tokens[ token-index ] ; parameter-name = parameter-names[ parameter-index ]
 
@@ -395,14 +397,14 @@
               continue
 
         if parameter-name isnt token
-          throw type-error ""
+          throw arg-error {value}, "Expected parameter '#{token}' but found '#{parameter-name}'"
 
         parameter-index++ ; token-index++
 
       if strict
 
         if parameter-index isnt parameters-count
-          throw type-error ""
+          throw arg-error {value} "Extraneous parameters found" # TODO improve message
 
       value
 
@@ -419,11 +421,11 @@
         | 'object' => object-with-members
         | 'function' => function-with-parameters
 
-      value `value-with-type-tokens` { descriptor, type-tokens }
+      value `value-with-type-tokens` [ descriptor, type-tokens ]
 
     argument-type = (descriptor, argument) ->
 
-      throw argtype-error {argument}, 'Object' unless value-is-object argument
+      throw argtype-error {argument}, 'Object'  unless value-is-object argument
       throw argtype-error {descriptor}, 'String' unless value-is-string descriptor
 
       keys = object-member-names argument
@@ -433,8 +435,10 @@
 
       argument-name = keys.0 ; argument-value = argument[ argument-name ]
 
-      try type descriptor, argument-value
-      catch error => argtype-error {argument}, error.message
+      type descriptor, argument-value
+
+      # try type descriptor, argument-value
+      # catch error => throw argtype-error {argument-value}, error.message
 
       argument-value
 
