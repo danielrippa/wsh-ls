@@ -1,15 +1,8 @@
 
   do ->
 
-    { string-size } = dependency 'value.String'
+    { string-size, first-index-of, last-index-of, string-contains } = dependency 'value.String'
     { create-regexp } = dependency 'value.string.RegExp'
-
-    maybe-null = -> if it is -1 then null else it
-
-    first-index-of = (haystack, needle, from-index = 0)               -> haystack.index-of      needle, from-index |> maybe-null
-    last-index-of  = (haystack, needle, from-index = haystack.length) -> haystack.last-index-of needle, from-index |> maybe-null
-
-    string-contains = (haystack, needle) -> (haystack `first-index-of` needle)?
 
     string-segment = (string, [ first-index = 0, size = string.length - first-index ]) -> string.slice first-index, first-index + size
 
