@@ -50,6 +50,7 @@
     value-is-regexp = _ `value-has-typetag` 'RegExp'
 
     {
+      is-a,
       value-is-null, value-is-void, value-is-empty,
       value-is-string, value-is-boolean, value-is-function,
       value-is-number, value-is-nan, value-is-infinity,
