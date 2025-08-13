@@ -14,7 +14,7 @@
 
     must-be = (argument, requirement) -> 
       keys = object-member-names argument ; argument-name = keys.0
-      "Argument '#argument-name' must be #requirement"
+      "Argument '#argument-name' #requirement"
 
     create-argument-error = (argument, message, error-type = TypeError) ->
 
