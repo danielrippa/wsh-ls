@@ -1,31 +1,33 @@
 
   do ->
 
-    { value-has-typetag } = dependency 'value.TypeTag'
+    value-typetag = (value) -> {} |> (.to-string) |> (.call value) |> (.slice 8, -1)
 
-    value-is-null = -> it is null
-    value-is-void = -> it is void
+    has-typetag = (value, typetag) -> (value-typetag value) is typetag
 
-    value-is-empty = (value) ->
+    is-null = -> it is null
+    is-void = -> it is void
+
+    is-empty-value = (value) ->
 
       match value
 
-        | value-is-null => yes
-        | value-is-void => yes
+        | is-null => yes
+        | is-void => yes
 
         else no
 
-    is-a = (value, type-name) -> (typeof value) is type-name
+    has-type = (value, type) -> (typeof value) is type
 
-    value-is-object = (value) ->
+    is-object = (value) ->
 
-      return no unless value `is-a` 'object'
+      return no unless value `has-type` 'object'
 
-      not value-is-empty value
+      not is-empty-value value
 
     { POSITIVE_INFINITY: posinf, NEGATIVE_INFINITY: neginf } = Number
 
-    value-is-infinity = (value) ->
+    is-infinity = (value) ->
 
       switch value
 
@@ -33,27 +35,29 @@
 
         else no
 
-    value-is-nan = (!= it)
+    is-nan = (!= it)
 
-    value-is-number = (value) -> (value `is-a` 'number') and not (value-is-nan value)
+    is-number = (value) -> (value `has-type` 'number') and not (is-nan value)
 
-    value-is-string = _ `is-a` 'string'
+    is-string = _ `has-type` 'string'
 
-    value-is-boolean = _ `is-a` 'boolean'
+    is-boolean = _ `has-type` 'boolean'
 
-    value-is-function = _ `is-a` 'function'
+    is-function = _ `has-type` 'function'
 
-    value-is-array = _ `value-has-typetag` 'Array'
+    is-error = _ `has-typetag`  'Error'
 
-    value-is-date = _ `value-has-typetag` 'Date'
+    is-array = _ `has-typetag` 'Array'
 
-    value-is-regexp = _ `value-has-typetag` 'RegExp'
+    is-date = _ `has-typetag` 'Date'
+
+    is-regexp = _ `has-typetag` 'RegExp'
 
     {
-      is-a,
-      value-is-null, value-is-void, value-is-empty,
-      value-is-string, value-is-boolean, value-is-function,
-      value-is-number, value-is-nan, value-is-infinity,
-      value-is-object, value-is-array,
-      value-is-date, value-is-regexp
+      value-typetag, has-typetag,
+      is-null, is-void, is-empty-value,
+      is-string, is-boolean, is-function,
+      is-number, is-nan, is-infinity,
+      is-object, is-array,
+      is-date, is-regexp,
     }

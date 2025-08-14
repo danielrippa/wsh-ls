@@ -42,9 +42,14 @@
 
     function-parameter-names = -> decompose-function it .parameter-names
 
-    function-execute-with-args = (fn, args) -> fn.apply null, args
+    function-execute-with-args = (fn, args, context = null) -> fn.apply context, args
+    
+    function-execute-with-call = (fn, context, args-object) -> fn.apply context, arguments-as-array args-object
+
+    arguments-as-array = (arguments-value) -> Array.prototype.slice.call arguments-value
 
     {
       function-name, function-code, function-parameter-names, function-comments
-      function-execute-with-args
+      function-execute-with-args, function-execute-with-call,
+      arguments-as-array
     }
