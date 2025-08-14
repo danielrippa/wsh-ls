@@ -18,6 +18,9 @@
 
     string-as-words = (string) -> string |> trimmed-string |> string-as-segments _ , [ whitespace, yes ]
 
+    is-empty-string = (string) -> (trimmed-string string) is ''
+
     {
-      trimmed-string, whitespace-as-separator, string-as-words
+      trimmed-string, is-empty-string,
+      whitespace-as-separator, string-as-words
     }
