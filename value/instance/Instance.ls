@@ -7,6 +7,7 @@
     { create-state } = dependency 'value.instance.State'
     { compose-with } = dependency 'value.instance.Composition'
     { camel-case, capital-case } = dependency 'value.string.Case'
+    { create-argument-error: arg-error } = dependency 'value.ArgumentError'
 
     attribute-type-manager = get-attribute-type-manager!
 
@@ -38,7 +39,7 @@
 
             notifier-instance = create-notifier member-descriptor.notifier
             instance `compose-with` notifier-instance.notifications
-            instance `compose-with` [ notifier-instance, <[ notify subscribe ]> ]
+            instance[name] = notifier-instance
             notifiers[name] = notifier-instance
 
           | (.getter isnt void) or (.setter isnt void) =>
@@ -51,7 +52,7 @@
               setter = apply member-descriptor, 'setter', name, instance
               instance["set#{ capital-case name }"] = (value) -> setter.call instance, value
 
-          else # TODO
+          else throw arg-error {member-descriptor} "Unknown member descriptor type for '#name'. Expected member, method, notifier, getter, or setter."
 
       instance
 

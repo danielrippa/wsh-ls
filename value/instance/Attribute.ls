@@ -2,6 +2,7 @@
   do ->
 
     { argument-type: argtype } = dependency 'value.reflection.Type'
+    { create-argument-error: arg-error } = dependency 'value.ArgumentError'
     { object-member-names } = dependency 'value.Object'
 
     create-attribute-type-manager = ->
@@ -35,13 +36,9 @@
 
       apply-attributes = (attributes, member-value, member-type, member-name, instance) ->
 
-        WScript.Echo 'antes'
-
         argtype '<Array|Undefined>' {attributes} ; return member-value if attributes is void
 
         argtype '[ *:Object ]' {attributes}
-
-        WScript.Echo 'dps'
 
         transformed-value = member-value
 
@@ -51,13 +48,13 @@
 
           attribute-type-names = object-member-names attribute
 
-          switch attribute-type-names.length
+          attribute-type-name = switch attribute-type-names.length
 
-            | 0 => throw new Error "Empty attribute declaration"
-            | 1 => attribute-type-name = attribute-type-names.0
+            | 0 => throw arg-error {attributes} "Empty attribute declaration."
+            | 1 => attribute-type-names.0
 
-            else throw new Error "Too many attributes in the same declaration" # TODO: improve
-          
+            else throw arg-error {attributes}, "Too many attributes in the same declaration."
+
           continue unless is-attribute-type-enabled attribute-type-name
 
           parameters = attribute[attribute-type-name]
@@ -67,7 +64,7 @@
           if attribute-type isnt void
             transformed-value = attribute-type transformed-value, member-type, member-name, instance, parameters
           else
-            throw new Error "Unknown attribute type '#attribute-type-name'"
+            throw arg-error {attribute-type-name}, "Unknown attribute type '#attribute-type-name'."
 
         transformed-value
 
@@ -77,12 +74,9 @@
 
     get-attribute-type-manager = -> attribute-type-manager
 
-    # Convenience function for applying attributes to standalone functions
     fn = (attributes, func) ->
-      
-      argtype '[ *:Object ]' {attributes}
-      argtype '<Function>' {func}
-      
+
+      argtype '[ *:Object ]' {attributes} ; argtype '<Function>' {func}
       attribute-type-manager.apply-attributes attributes, func, 'method', 'function', null
 
     {

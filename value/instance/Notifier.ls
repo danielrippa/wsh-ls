@@ -2,6 +2,7 @@
   do ->
 
     { argument-type: argtype } = dependency 'value.reflection.Type'
+    { create-argument-error: arg-error } = dependency 'value.ArgumentError'
     { camel-case } = dependency 'value.string.Case'
     { get-timestamp } = dependency 'value.Date'
 
@@ -36,7 +37,7 @@
           argtype '<String>' {notification-name} ; argtype '<Function>' {callback}
 
           unless notification-name in notification-names
-            throw new Error "Invalid notification name: #notification-name. Valid names: #{ notification-names * ', '}"
+            throw arg-error {notification-name} "Valid notification names: #{ notification-names * ', '}"
 
           create-subscription notification-name, callback, subscriptions, subscription-lookup
 
@@ -47,7 +48,7 @@
           for name in names
 
             unless name in notification-names
-              throw new Error "Invalid notification name: #name. Valid names: #{ notification-names * ', '}"
+              throw arg-error {names} "Valid notification names: #{ notification-names * ', '}"
 
             for subscription-id, subscription of subscriptions[name]
               if subscription.is-enabled!
