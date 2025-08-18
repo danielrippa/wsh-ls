@@ -9,8 +9,8 @@
       current-context-chain = parent-contexts
 
       attach-current-context-to-error = (error) ->
-        error.namespace = qualified-namespace
-        error.contexts = current-context-chain.slice() # Create a copy
+
+        error <<< { namespace: qualified-namespace, contexts: current-context-chain.slice() }
 
       context-function = (context-name) ->
 
