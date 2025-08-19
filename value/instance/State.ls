@@ -4,26 +4,28 @@
     { camel-case } = dependency 'value.string.Case'
     { create-notifier } = dependency 'value.instance.Notifier'
     { argument-type: argtype } = dependency 'value.reflection.Type'
-    { create-argument-error: arg-error } = dependency 'value.ArgumentError'
+    { array-item-indices } = dependency 'value.Array'
+    { create-error-context } = dependency 'value.error.ErrorContext'
+    { value-as-string } = dependency 'value.AsString'
 
-    create-transition-event = (transition, from-state, to-state, extra = {}) ->
+    { context } = create-error-context 'value.instance.State'
 
-      { transition, from-state, to-state, timestamp: new Date! } <<< extra
+    create-transition-event = (transition, from-state, to-state) ->
 
-    states-pair-as-transition = (transition-name, states-pair) ->
+      { transition, from-state, to-state, timestamp: new Date! }
 
-      [ source-state, target-state ] = states-pair
+    validate-state-machine = (states, transitions) ->
 
-      { from: source-state, to: target-state }
-
-    create-state = (states, transitions, instance-context = {}) ->
+      { argtype, arg-error } = context 'validate-state-machine'
 
       argtype '[ *:String ]' {states} ; argtype '<Object>' {transitions}
 
       if states.length < 2
-        arg-error {states}, "A state machine must have at least two states."
+        throw arg-error {states}, "A state machine must have at least two states."
 
-      current-state = states.0
+      for state in states
+        if (array-item-indices states, state) .length > 1
+          throw arg-error {states}, "State is duplicated."
 
       for transition-name, states-pair of transitions
 
@@ -35,70 +37,96 @@
         if source-state is target-state
           throw arg-error {states-pair}, "Cannot transition to itself."
 
-        unless source-state in states
+        if source-state not in states
           throw arg-error {source-state}, "Must be one of #{ states * ', ' }."
 
-        unless target-state in states
+        if target-state not in states
           throw arg-error {target-state}, "Must be one of #{ states * ', ' }."
 
-      transition-map = { [ transition-name, states-pair-as-transition transition-name, states-pair ] for transition-name, states-pair of transitions }
+    get-state-events = (states) ->
+      events = []
+      for state in states
+        events.push "enter-#{state}"
+        events.push "leave-#{state}"
+      events
 
-      transition-events = []
+    get-transition-events = (transitions) ->
+      events = []
+      for transition-name of transitions
+        events.push "before-#{transition-name}"
+        events.push "after-#{transition-name}"
+      events
 
-      for transition-name of transition-map
-        transition-events.push "before-#{transition-name}"
-        transition-events.push "after-#{transition-name}"
+    attach-event-handlers = (instance, notifier, event-names) ->
+      for event-name in event-names
+        handler-name = camel-case event-name
+        instance[handler-name] = notifier.notifications[handler-name]
 
-      notifier = create-notifier transition-events
+    create-state = (states, transitions, initial-state) ->
 
-      execute-transition = (transition-name, source-state, target-state) ->
-        if current-state isnt source-state
-          throw arg-error {transition-name}, "Cannot perform transition. Expected state '#{source-state}', but current state is '#{current-state}'."
+      { argtype, arg-error } = context 'create-state'
 
-        previous-state = current-state
+      argtype '<String|Undefined>' {initial-state}
 
-        before-event = create-transition-event transition-name, previous-state, target-state
-        notifier.notify ["before-#{transition-name}"], before-event
+      if initial-state is void
+        initial-state = states.0
 
-        hook-name = camel-case "on-#{transition-name}"
-        if instance-context[hook-name]
-          instance-context[hook-name] previous-state, target-state
+      if initial-state not in states
+        throw arg-errror {initial-state} "Initial state must be any of #{ states * ', ' }."
 
-        current-state := target-state
+      current-state = initial-state
 
-        after-event = create-transition-event transition-name, previous-state, current-state, { success: true }
-        notifier.notify ["after-#{transition-name}"], after-event
+      validate-state-machine states, transitions
 
-        current-state
+      state-notifier = create-notifier get-state-events states
+      transition-notifier = create-notifier get-transition-events transitions
 
       instance = {}
 
       instance.state = -> current-state
 
       instance.transition-to = (target-state) ->
-        for transition-name, transition of transition-map
-          if transition.from is current-state and transition.to is target-state
-            return execute-transition transition-name, current-state, target-state
 
-        throw arg-error {target-state}, "No valid transition from '#{current-state}' to '#{target-state}'."
+        for transition-name, { source-state, target-state: transition-target-state } of transitions
 
-      for name, transition of transition-map
+          if source-state is current-state and target-state is transition-target-state
 
-        { from: source, to: target } = transition
+            from-state = current-state
 
-        do (transition-name = name, source-state = source, target-state = target) ->
+            transition-notifier.notify ["before-#{transition-name}"], from-state, target-state
+            state-notifier.notify ["leave-#{from-state}"], from-state, target-state
+
+            current-state = target-state
+
+            state-notifier.notify ["enter-#{target-state}"], from-state, target-state
+            transition-notifier.notify ["after-#{transition-name}"], from-state, target-state
+
+            return # transition successful
+
+        throw arg-error {target-state}, "No valid transition from '#current-state' to '#target-state'."
+
+      for name, transition of transitions
+        do (transition-name = name, { source-state, target-state } = transition) ->
           instance[camel-case transition-name] = ->
-            execute-transition transition-name, source-state, target-state
+            if current-state isnt source-state
+              throw arg-error { current-state }, "Transition '#{transition-name}' not available from state '#{current-state}'."
 
-      for transition-name of transition-map
-        before-event = camel-case "before-#{transition-name}"
-        after-event = camel-case "after-#{transition-name}"
+            from-state = current-state
 
-        instance[before-event] = notifier.notifications[before-event]
-        instance[after-event] = notifier.notifications[after-event]
+            transition-notifier.notify ["before-#{transition-name}"], from-state, target-state
+            state-notifier.notify ["leave-#{from-state}"], from-state, target-state
+
+            current-state = target-state
+
+            state-notifier.notify ["enter-#{target-state}"], from-state, target-state
+            transition-notifier.notify ["after-#{transition-name}"], from-state, target-state
+
+      attach-event-handlers instance, transition-notifier, get-transition-events transitions
+      attach-event-handlers instance, state-notifier, get-state-events states
 
       instance
 
     {
+      validate-state-machine,
       create-state
     }

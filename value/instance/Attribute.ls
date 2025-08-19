@@ -1,16 +1,21 @@
 
   do ->
 
-    { argument-type: argtype } = dependency 'value.reflection.Type'
-    { create-argument-error: arg-error } = dependency 'value.ArgumentError'
     { object-member-names } = dependency 'value.Object'
+    { create-error-context } = dependency 'value.error.ErrorContext'
+
+    { context } = create-error-context 'value.instance.Attribute'
 
     create-attribute-type-manager = ->
+
+      { context: atm-context } = context 'create-attribute-type-manager'
 
       attribute-types = {}
       disabled-attributes = {}
 
       register-attribute-type = (attribute-name, handler) ->
+
+        { argtype } = atm-context 'register-attribute-type'
 
         argtype '<String>' {attribute-name} ; argtype '<Function>' {handler}
 
@@ -18,11 +23,15 @@
 
       enable-attribute-type = (attribute-name) ->
 
+        { argtype } = atm-context 'enable-attribute-type'
+
         argtype '<String>' {attribute-name}
 
         delete disabled-attributes[attribute-name]
 
       disable-attribute-type = (attribute-name) ->
+
+        { argtype } = atm-context 'disable-attribute-type'
 
         argtype '<String>' {attribute-name}
 
@@ -30,11 +39,15 @@
 
       is-attribute-type-enabled = (attribute-name) ->
 
+        { argtype } = atm-context 'is-attribute-type-enabled'
+
         argtype '<String>' {attribute-name}
 
         disabled-attributes[attribute-name] isnt true
 
       apply-attributes = (attributes, member-value, member-type, member-name, instance) ->
+
+        { argtype, arg-error } = atm-context 'apply-attributes'
 
         argtype '<Array|Undefined>' {attributes} ; return member-value if attributes is void
 
@@ -75,6 +88,8 @@
     get-attribute-type-manager = -> attribute-type-manager
 
     fn = (attributes, func) ->
+
+      { argtype } = context 'fn'
 
       argtype '[ *:Object ]' {attributes} ; argtype '<Function>' {func}
       attribute-type-manager.apply-attributes attributes, func, 'method', 'function', null

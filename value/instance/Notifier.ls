@@ -2,7 +2,7 @@
   do ->
 
     { argument-type: argtype } = dependency 'value.reflection.Type'
-    { create-argument-error: arg-error } = dependency 'value.ArgumentError'
+    { create-argument-error: arg-error } = dependency 'value.error.ArgumentError'
     { camel-case } = dependency 'value.string.Case'
     { get-timestamp } = dependency 'value.Date'
 
