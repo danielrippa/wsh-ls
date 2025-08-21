@@ -1,19 +1,28 @@
+do ->
 
-  do ->
-
-    { argument-type: argtype } = dependency 'value.reflection.Type'
-    { create-argument-error: arg-error } = dependency 'value.error.ArgumentError'
-    { camel-case } = dependency 'value.string.Case'
+    { create-error-context } = dependency 'value.error.ErrorContext'
+    { array-item-indices } = dependency 'value.Array'
     { get-timestamp } = dependency 'value.Date'
+
+    { context } = create-error-context 'value.instance.Notifier'
 
     create-subscription-id = -> "subscription-#{ get-timestamp! }"
 
-    create-subscription = (notification-name, handler, subscriptions, subscription-lookup) ->
+    validate-notification-name = (notification-name, notification-names, arg-error) ->
+
+      unless notification-name in notification-names
+        throw arg-error {notification-name} "Valid notification names are: #{ notification-names * ', ' }"
+
+    create-subscription = (name, handler, subscriptions, subscription-lookup) ->
+
+      notification-name = name
 
       id = create-subscription-id!
-      enabled = true ; is-enabled = (-> enabled) ; enable = (-> enabled := yes) ; disable = (-> enabled := no)
+
+      enabled = yes ; is-enabled = (-> enabled) ; enable = (-> enabled := yes) ; disable = (-> enabled := no)
 
       unsubscribe = ->
+
         delete subscriptions[notification-name][id]
         delete subscription-lookup[id]
 
@@ -24,64 +33,89 @@
 
       subscription
 
+    #
+
     create-notifier = (notification-names) ->
+
+      { argtype, context: cn-context } = context 'create-notifier'
 
       argtype '[ *:String ]' {notification-names}
 
       subscriptions = { [ name, {} ] for name in notification-names }
       subscription-lookup = {}
 
-      notifier =
+      subscribe = (name, callback) ->
 
-        subscribe: (notification-name, callback) ->
-          argtype '<String>' {notification-name} ; argtype '<Function>' {callback}
+        { argtype, arg-error } = cn-context 'subscribe'
 
-          unless notification-name in notification-names
-            throw arg-error {notification-name} "Valid notification names: #{ notification-names * ', '}"
+        argtype '<String>' {name} ; argtype '<Function>' {callback}
 
-          create-subscription notification-name, callback, subscriptions, subscription-lookup
+        notification-name = name
 
-        notify: (names, ...notification-args) ->
+        validate-notification-name notification-name, notification-names, arg-error
 
-          argtype '[ *:String ]' {names}
+        create-subscription notification-name, callback, subscriptions, subscription-lookup
 
-          for name in names
+      notify = (names, ...notification-args) ->
 
-            unless name in notification-names
-              throw arg-error {names} "Valid notification names: #{ notification-names * ', '}"
+        { argtype, arg-error } = cn-context 'notify'
 
-            for subscription-id, subscription of subscriptions[name]
-              if subscription.is-enabled!
+        argtype '[ *:String ]' {names}
 
-                subscription.handler.apply null, notification-args
+        for name in names
 
-        unsubscribe-by-id: (subscription-id) ->
-          argtype '<String>' {subscription-id}
+          validate-notification-name name, notification-names, arg-error
 
-          lookup = subscription-lookup[subscription-id]
+          for subscription-id, subscription of subscriptions[name]
 
-          if lookup isnt void
-            lookup.subscription.unsubscribe! ; return true
+            if subscription.is-enabled!
 
-          false
+              subscription.handler.apply null, notification-args
 
-        get-subscription-by-id: (subscription-id) ->
-          argtype '<String>' {subscription-id}
+      # TODO: subscription-by-id friends must be DRY
 
-          lookup = subscription-lookup[subscription-id]
+      unsubscribe-by-id = (subscription-id) ->
 
-          if lookup isnt void
-            lookup.subscription
-          else
-            null
+        { argtype } = cn-context 'unsubscribe-by-id'
 
-      notifier.notifications = {}
+        argtype '<String>' {subscription-id}
+
+        lookup = subscription-lookup[subscription-id]
+
+        if lookup isnt void
+          lookup.subscription.unsubscribe! ; return true
+
+        false
+
+      get-subscription-by-id = (subscription-id) ->
+
+        { argtype } = cn-context 'get-subscription-by-id'
+
+        lookup = subscription-lookup[subscription-id]
+
+        if lookup isnt void
+          lookup.subscription
+        else
+          null
+
+      notifications = {}
 
       for name in notification-names
-        notifier.notifications[ camel-case name ] = do (notification-name = name) ->
-          (callback) -> notifier.subscribe notification-name, callback
 
-      notifier
+        notification-name = name
+
+        notifications[ notification-name ] = do (notification-name = notification-name) ->
+
+          (callback) ->
+
+            argtype '<Function>' {callback}
+
+            @subscribe notification-name, callback
+
+      {
+        subscribe, notifications, notify,
+        unsubscribe-by-id, get-subscription-by-id
+      }
 
     {
       create-notifier
