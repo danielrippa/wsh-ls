@@ -1,10 +1,12 @@
-do ->
+
+  do ->
 
     { create-error-context } = dependency 'value.error.ErrorContext'
     { array-item-indices } = dependency 'value.Array'
     { object-member-names } = dependency 'value.Object'
     { create-notifier } = dependency 'value.instance.Notifier'
     { map-array-items } = dependency 'value.Array'
+    { camel-case } = dependency 'value.string.Case'
 
     { value-as-string } = dependency 'value.AsString'
 
@@ -51,12 +53,12 @@ do ->
 
     get-state-events = (states) ->
 
-      events = [] ; for state in states => events => ..push "enter-#state" ; ..push "leave-#state"
+      events = [] ; for state in states => events => ..push camel-case "enter-#state" ; ..push camel-case "leave-#state"
       events
 
     get-transition-events = (transitions) ->
 
-      events = [] ; for transition-name of transitions => events => ..push "before-#transition-name" ; ..push "after-#transition-name"
+      events = [] ; for transition-name of transitions => events => ..push camel-case "before-#transition-name" ; ..push camel-case "after-#transition-name"
       events
 
     attach-event-handlers = (instance, notifier, event-names) ->
@@ -71,7 +73,7 @@ do ->
 
       { argtype, arg-error, context: cs-context } = context 'create-state'
 
-      member-name = name
+      member-name = camel-case name
 
       validate-state-machine states, transitions
 
@@ -104,7 +106,7 @@ do ->
 
             if current-state isnt source-state
 
-              arg-error {current-state} "Transition '#transition-name' not possible from state '#current-state'."
+              throw arg-error {current-state} "Transition '#transition-name' not possible from state '#current-state'."
 
             transition-notifier.notify [ "before-#transition-name" ], source-state, target-state
             state-notifier.notify [ "leave-#source-state" ], source-state, target-state
