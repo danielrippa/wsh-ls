@@ -12,7 +12,10 @@
 
     validate-notification-names = (notification-names, argtype, arg-error) ->
 
-      argtype '[ *:String ]' {notification-names} ; argtype '[ String ... ]' {notification-names}
+      argtype '[ *:String ]' {notification-names} ;
+
+      try argtype '[ String ... ]' {notification-names}
+      catch error => throw arg-error {notification-names} "A notifier must have at least 1 notification."
 
       unless array-items-are-unique notification-names
         throw arg-error {notification-names} "Notification names must be unique."

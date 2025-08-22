@@ -35,7 +35,7 @@ do ->
 
         behavior-type
 
-      set-behavior-type = (name, behavior-kind, behavior, { required = false } = {}) ->
+      set-behavior-type = (name, behavior-kind, behavior) ->
 
         { argtype, arg-error } = tm-context 'set-behavior-type'
 
@@ -43,7 +43,16 @@ do ->
 
         throw arg-error {name}, "Behavior type is already registered." if (get-behavior-type name) isnt void
 
-        behavior-types[ name ] := { behavior-kind, behavior, required }
+        behavior-types[ name ] := { behavior-kind, behavior, required: false }
+
+      set-behavior-type-required = (name, required) ->
+
+        { argtype, arg-error } = tm-context 'set-behavior-type-required'
+
+        argtype '<String>' {name} ; argtype '<Boolean>' {required}
+
+        behavior-type = get-existing-behavior-type name
+        behavior-type.required = required
 
       get-instance-type = (name) -> instance-types[ name ]
 
@@ -67,18 +76,18 @@ do ->
 
         lifecycle.notify <[ instance-type-created ]>, instance-types[ name ]
 
-      set-instance-type-behavior = (instance-type-name, behavior-name, behavior-type-name) ->
+      set-instance-type-behavior = (instance-type-name, behavior-type-name, member-name) ->
 
         { argtype } = tm-context 'set-instance-type-behavior'
 
-        argtype '<String>' {instance-type-name} ; argtype '<String>' {behavior-name} ; argtype '<String>' {behavior-type-name}
+        argtype '<String>' {instance-type-name} ; argtype '<String>' {behavior-type-name} ; argtype '<String>' {member-name}
 
         instance-type = get-existing-instance-type instance-type-name
         behavior-type = get-existing-behavior-type behavior-type-name
 
-        instance-type.behaviors[behavior-name] = behavior-type-name
+        instance-type.behaviors[member-name] = behavior-type-name
 
-        lifecycle.notify <[ instance-type-behavior-set ]>, { instance-type-name, instance-type, behavior-name, behavior-type-name }
+        lifecycle.notify <[ instance-type-behavior-set ]>, { instance-type-name, instance-type, member-name, behavior-type-name }
 
       get-state-machine = (name) -> state-machines[ name ]
 
@@ -121,7 +130,6 @@ do ->
 
         { argtype, arg-error } = tm-context 'transitions-array-to-object'
 
-        # This validation is important to ensure the integrity of the state machine definition.
         argtype '[ *:Object ]' {object-array}
 
         for transition-object, transition-index in object-array
@@ -169,7 +177,9 @@ do ->
 
         for instance-type-name in state-machine-to-instance-types[state-machine-name] or []
           instance-type = get-existing-instance-type instance-type-name
-          lifecycle.notify <[ instance-type-state-machine-set ]>, { instance-type-name, instance-type, state-machine-name }
+          for member-name, state of instance-type.states
+            if state.name is state-machine-name
+              lifecycle.notify <[ instance-type-state-machine-set ]>, { instance-type-name, instance-type, state-machine-name, member-name }
 
       add-state-machine-transition = (state-machine-name, transition-name, source-state, target-state) ->
 
@@ -191,13 +201,15 @@ do ->
 
         for instance-type-name in state-machine-to-instance-types[state-machine-name] or []
           instance-type = get-existing-instance-type instance-type-name
-          lifecycle.notify <[ instance-type-state-machine-set ]>, { instance-type-name, instance-type, state-machine-name }
+          for member-name, state of instance-type.states
+            if state.name is state-machine-name
+              lifecycle.notify <[ instance-type-state-machine-set ]>, { instance-type-name, instance-type, state-machine-name, member-name }
 
-      set-instance-type-state-machine = (instance-type-name, state-machine-name, initial-state-name = void) ->
+      set-instance-type-state-machine = (instance-type-name, state-machine-name, member-name, initial-state-name = void) ->
 
         { argtype, arg-error } = tm-context 'set-instance-type-state-machine'
 
-        argtype '<String>' {instance-type-name } ; argtype '<String>' {state-machine-name} ; argtype '<String|Undefined>' {initial-state-name}
+        argtype '<String>' {instance-type-name } ; argtype '<String>' {state-machine-name} ; argtype '<String>' {member-name} ; argtype '<String|Undefined>' {initial-state-name}
 
         instance-type = get-existing-instance-type instance-type-name
         state-machine = get-existing-state-machine state-machine-name
@@ -205,13 +217,13 @@ do ->
         if initial-state-name isnt void and initial-state-name not in state-machine.state-names
           throw arg-error {initial-state-name}, "Initial state must be one of #{ state-machine.state-names * ', ' }."
 
-        instance-type.states[state-machine-name] = { name: state-machine-name, initial-state: initial-state-name }
+        instance-type.states[member-name] = { name: state-machine-name, initial-state: initial-state-name }
 
         if state-machine-to-instance-types[state-machine-name] is void
           state-machine-to-instance-types[state-machine-name] = []
         state-machine-to-instance-types[state-machine-name].push instance-type-name
 
-        lifecycle.notify <[ instance-type-state-machine-set ]>, { instance-type-name, instance-type, state-machine-name }
+        lifecycle.notify <[ instance-type-state-machine-set ]>, { instance-type-name, instance-type, state-machine-name, member-name }
 
       get-property-type = (name) -> property-types[ name ]
 
@@ -223,15 +235,15 @@ do ->
 
         property-type
 
-      set-property-type = (name, type, default-value, { read-only = true, required = false, kind = '' } = {}) ->
+      set-property-type = (name, type, kind, default-value = void) ->
 
         { argtype, arg-error } = tm-context 'set-property-type'
 
-        argtype '<String>' {name} ; argtype '<String>' {type}
+        argtype '<String>' {name} ; argtype '<String>' {type} ; argtype '<String>' {kind}
 
         throw arg-error {name}, "Property type is already registered." if (get-property-type name) isnt void
 
-        property-types[ name ] := { type, default-value, read-only, required, kind }
+        property-types[ name ] := { type, default-value, read-only: true, required: false, kind }
 
       set-property-type-writable = (name) ->
 
@@ -242,18 +254,27 @@ do ->
         property-type = get-existing-property-type name
         property-type.read-only = false
 
-      set-instance-type-property = (instance-type-name, property-name, property-type-name) ->
+      set-property-type-required = (name, required) ->
+
+        { argtype, arg-error } = tm-context 'set-property-type-required'
+
+        argtype '<String>' {name} ; argtype '<Boolean>' {required}
+
+        property-type = get-existing-property-type name
+        property-type.required = required
+
+      set-instance-type-property = (instance-type-name, property-type-name, member-name) ->
 
         { argtype } = tm-context 'set-instance-type-property'
 
-        argtype '<String>' {instance-type-name} ; argtype '<String>' {property-name} ; argtype '<String>' {property-type-name}
+        argtype '<String>' {instance-type-name} ; argtype '<String>' {property-type-name} ; argtype '<String>' {member-name}
 
         instance-type = get-existing-instance-type instance-type-name
         property-type = get-existing-property-type property-type-name
 
-        instance-type.properties[property-name] = property-type-name
+        instance-type.properties[member-name] = property-type-name
 
-        lifecycle.notify <[ instance-type-property-set ]>, { instance-type-name, instance-type, property-name, property-type-name }
+        lifecycle.notify <[ instance-type-property-set ]>, { instance-type-name, instance-type, member-name, property-type-name }
 
       build-instance-type = (name) ->
 
@@ -264,24 +285,25 @@ do ->
         instance-type = get-existing-instance-type name
 
         behaviors = {}
-        for behavior-name, behavior-type-name of instance-type.behaviors
+        for member-name, behavior-type-name of instance-type.behaviors
           { behavior-kind, behavior: behavior-function, required } = get-existing-behavior-type behavior-type-name
-          behaviors[behavior-name] = { behavior-kind, behavior-function, required }
+          behaviors[member-name] = { behavior-kind, behavior-function, required }
 
         state-machines = {}
-        for state-machine-name, state-machine-desc of instance-type.states
+        for member-name, state-machine-desc of instance-type.states
+          { name: state-machine-name, initial-state } = state-machine-desc
           state-machine = get-existing-state-machine state-machine-name
-          initial-state = if state-machine-desc.initial-state isnt void then state-machine-desc.initial-state else state-machine.initial-state
-          state-machines[state-machine-name] = {
+          initial-state = if initial-state isnt void then initial-state else state-machine.initial-state
+          state-machines[member-name] = {
             state-names: state-machine.state-names.slice!
             transitions: state-machine.transitions.slice!
             initial-state: initial-state
           }
 
         properties = {}
-        for property-name, property-type-name of instance-type.properties
+        for member-name, property-type-name of instance-type.properties
           { type, default-value, read-only, required, kind } = get-existing-property-type property-type-name
-          properties[property-name] = { type, default-value, read-only, required, kind }
+          properties[member-name] = { type, default-value, read-only, required, kind }
 
         { name, behaviors, state-machines, properties }
 
@@ -289,6 +311,8 @@ do ->
         set-behavior-type,
         set-property-type,
         set-property-type-writable,
+        set-property-type-required,
+        set-behavior-type-required,
         create-state-machine,
         add-state-machine-state,
         add-state-machine-transition,
@@ -313,6 +337,25 @@ do ->
 
     get-instance-type-manager = -> instance-type-manager
 
+    build-property-descriptor = (property) ->
+      property-value = property.default-value
+      getter = -> property-value
+      setter = if property.read-only then void else (value) -> property-value := value
+      descriptor = { getter, attributes: [] }
+      if setter then descriptor.setter = setter
+      descriptor
+
+    build-state-descriptor = (state-machine) ->
+      { state-names, transitions: state-machine-transitions, initial-state } = state-machine
+      transitions = {}
+      for transition in state-machine-transitions
+        for transition-name, states-pair of transition
+          transitions[transition-name] = states-pair
+      { state: [state-names, transitions, initial-state], attributes: [] }
+
+    build-behavior-descriptor = (behavior-function) ->
+      { method: behavior-function, attributes: [] }
+
     create-instance-builder = ->
 
       { context: ib-context } = context 'create-instance-builder'
@@ -325,40 +368,20 @@ do ->
 
         argtype '<String>' {instance-type-name}
 
-        # build-instance-type brings the full definition of an instance type, including properties.
         instance-type = instance-type-manager.build-instance-type instance-type-name
 
         { behaviors, state-machines, properties } = instance-type
 
         member-descriptors = {}
 
-        for behavior-name, { behavior-function } of behaviors
-          member-descriptors[behavior-name] = { method: behavior-function, attributes: [] }
+        for member-name, { behavior-function } of behaviors
+          member-descriptors[member-name] = build-behavior-descriptor behavior-function
 
-        for state-machine-name, state-machine of state-machines
+        for member-name, state-machine of state-machines
+          member-descriptors[member-name] = build-state-descriptor state-machine
 
-          { state-names, transitions: state-machine-transitions, initial-state } = state-machine
-
-          transitions = {}
-          for transition in state-machine-transitions
-            for transition-name, states-pair of transition
-              transitions[transition-name] = states-pair
-
-          member-descriptors[state-machine-name] = { state: [state-names, transitions, initial-state], attributes: [] }
-
-        for property-name, property-desc of properties
-
-          do (property-name, property-desc) ->
-
-            property-value = property-desc.default-value
-
-            getter = -> property-value
-            setter = if property-desc.read-only then void else (value) -> property-value = value
-
-            descriptor = { get: getter, attributes: [] }
-            if setter then descriptor.set = setter
-
-            member-descriptors[property-name] = descriptor
+        for member-name, property of properties
+          member-descriptors[member-name] = build-property-descriptor property
 
         create-instance member-descriptors
 
@@ -369,5 +392,6 @@ do ->
     get-instance-builder = -> instance-builder
 
     {
-      get-instance-type-manager, get-instance-builder
+      get-instance-type-manager, get-instance-builder,
+      build-property-descriptor, build-state-descriptor, build-behavior-descriptor
     }

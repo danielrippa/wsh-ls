@@ -141,5 +141,6 @@
       instance
 
     {
-      create-state
+      create-state,
+      validate-state-machine
     }
